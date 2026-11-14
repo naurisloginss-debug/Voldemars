@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="lv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1F3A5F">
+<title>Voldemars</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --bg:#F5F0E6; --card:#FFFFFF; --ink:#1A1A1A; --muted:#5B5B5B;
+    --main:#1F3A5F; --main-ink:#FFFFFF; --other:#8A4B1F; --live:#B3261E;
+    --line:#D9D1C3;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;min-height:100dvh;
+    padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+    -webkit-tap-highlight-color:transparent}
+  button{font:inherit;cursor:pointer}
+  button:focus-visible{outline:4px solid #E0A100;outline-offset:3px}
+
+  .greeting{font-size:30px;font-weight:700;line-height:1.2;margin:4px 0 16px}
+
+  .langs{display:flex;gap:10px;margin-bottom:16px}
+  .langs button{flex:1;padding:14px 8px;border-radius:14px;border:3px solid var(--line);
+    background:var(--card);font-size:22px;font-weight:600;color:var(--ink)}
+  .langs button[aria-pressed="true"]{border-color:var(--main);background:#E3EAF3}
+
+  .result{flex:1;background:var(--card);border-radius:20px;padding:18px;
+    border:2px solid var(--line);display:flex;flex-direction:column;gap:10px;min-height:160px;overflow:auto}
+  .heard{font-size:20px;color:var(--muted);min-height:1.3em}
+  .said{font-size:32px;font-weight:700;line-height:1.25;word-wrap:break-word}
+  .hint{font-size:20px;color:var(--muted)}
+  .tools{display:flex;gap:10px;margin-top:auto}
+  .tools button{flex:1;padding:14px;border-radius:14px;border:2px solid var(--line);
+    background:var(--bg);font-size:20px;color:var(--ink)}
+  .tools[hidden]{display:none}
+
+  .mic{width:100%;border:0;border-radius:24px;margin-top:16px;
+    display:flex;align-items:center;justify-content:center;gap:14px;color:var(--main-ink)}
+  .mic svg{flex:none}
+  #me{background:var(--main);font-size:30px;font-weight:700;min-height:120px}
+  #them{background:var(--other);font-size:22px;font-weight:600;min-height:72px}
+  .mic.listening{background:var(--live)!important;animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{50%{transform:scale(.98)}}
+  @media (prefers-reduced-motion:reduce){.mic.listening{animation:none}}
+
+  .error{color:var(--live);font-size:20px}
+</style>
+</head>
+<body>
+  <div class="greeting" id="greeting">Sveiks, Voldemār!<br>Ko es tev šodien varu iztulkot?</div>
+
+  <div class="langs" role="group" aria-label="Valoda">
+    <button id="lang-en" aria-pressed="true">🇬🇧 Angliski</button>
+    <button id="lang-es" aria-pressed="false">🇪🇸 Spāniski</button>
+  </div>
+
+  <div class="result" aria-live="polite">
+    <div class="heard" id="heard"></div>
+    <div class="said" id="said"></div>
+    <div class="hint" id="hint">Spied zilo pogu un runā latviski.<br><br>Lai otrs cilvēks runā — spied brūno pogu un iedod viņam telefonu.</div>
+    <div class="tools" id="tools" hidden>
+      <button id="again">🔊 Vēlreiz</button>
+      <button id="slow">🐢 Lēnāk</button>
+    </div>
+  </div>
+
+  <button class="mic" id="me">
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+    <span id="me-label">Runāt</span>
+  </button>
+  <button class="mic" id="them">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+    <span id="them-label">Speak English</span>
+  </button>
+
+<script>
+(() => {
+  const LANGS = {
+    en: { code: 'en-US', speakBtn: 'Speak English', listening: 'Listening…' },
+    es: { code: 'es-ES', speakBtn: 'Hable español', listening: 'Escuchando…' },
+  };
+  const LV = 'lv-LV';
+  const GREETING = 'Sveiks, Voldemār! Ko es tev šodien varu iztulkot?';
+  const $ = id => document.getElementById(id);
+
+  let target = 'en';
+  try { if (localStorage.getItem('target') === 'es') target = 'es'; } catch {}
+  let last = null; // {text, lang}
+
+  // ---------- language toggle ----------
+  function setTarget(t) {
+    target = t;
+    try { localStorage.setItem('target', t); } catch {}
+    $('lang-en').setAttribute('aria-pressed', t === 'en');
+    $('lang-es').setAttribute('aria-pressed', t === 'es');
+    $('them-label').textContent = LANGS[t].speakBtn;
+  }
+  $('lang-en').onclick = () => setTarget('en');
+  $('lang-es').onclick = () => setTarget('es');
+  setTarget(target);
+
+  // ---------- speaking ----------
+  let voices = [];
+  const loadVoices = () => { voices = speechSynthesis.getVoices(); };
+  if ('speechSynthesis' in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+
+  function pickVoice(lang) {
+    const base = lang.slice(0, 2).toLowerCase();
+    return voices.find(v => v.lang.replace('_', '-') === lang)
+        || voices.find(v => v.lang.toLowerCase().startsWith(base));
+  }
+  function speak(text, lang, rate = 0.95) {
+    return new Promise(resolve => {
+      if (!('speechSynthesis' in window)) return resolve(false);
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang; u.rate = rate;
+      const v = pickVoice(lang); if (v) u.voice = v;
+      let started = false;
+      u.onstart = () => { started = true; };
+      u.onend = () => resolve(true);
+      u.onerror = () => resolve(started);
+      speechSynthesis.speak(u);
+    });
+  }
+
+  // Greeting: try to say it on open. Browsers may block sound until the first touch,
+  // so if it didn't start, say it on the first touch instead.
+  let greeted = false;
+  function greet() {
+    if (greeted) return; greeted = true;
+    speak(GREETING, LV);
+    setTimeout(() => { if (!speechSynthesis.speaking) greeted = false; }, 1200);
+  }
+  window.addEventListener('load', () => setTimeout(greet, 400));
+  document.addEventListener('pointerdown', e => {
+    if (!greeted && !e.target.closest('.mic')) greet();
+  }, { once: false, capture: true });
+
+  // ---------- translating ----------
+  // Strip spoken commands like "lūdzu, iztulko angliski: ..." and switch language if named.
+  function cleanLatvian(text) {
+    let t = text.trim();
+    if (/spāņ|spāniski/i.test(t.slice(0, 50))) setTarget('es');
+    else if (/angļ|angliski/i.test(t.slice(0, 50))) setTarget('en');
+    t = t.replace(/^(sveiks|labdien)?[\s,]*(lūdzu)?[\s,]*((pār|iz)?tulko(t|jiet|) |kā (būs|pateikt|lai pasaka) )(man )?(šo |to )?(angliski|spāniski|uz angļu valodu|uz spāņu valodu)?[\s:,.-]*/i, '');
+    return t || text.trim();
+  }
+
+  async function translate(text, from, to) {
+    // 1) Google's free web endpoint
+    try {
+      const u = 'https://translate.googleapis.com/translate_a/single?client=gtx&dt=t'
+        + '&sl=' + from + '&tl=' + to + '&q=' + encodeURIComponent(text);
+      const r = await fetch(u);
+      if (r.ok) {
+        const j = await r.json();
+        const out = j[0].map(p => p[0]).join('');
+        if (out) return out;
+      }
+    } catch {}
+    // 2) Fallback: MyMemory
+    const u = 'https://api.mymemory.translated.net/get?langpair=' + from + '|' + to
+      + '&q=' + encodeURIComponent(text);
+    const r = await fetch(u);
+    const j = await r.json();
+    if (j && j.responseData && j.responseData.translatedText) return j.responseData.translatedText;
+    throw new Error('no translation');
+  }
+
+  // ---------- listening ----------
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, activeBtn = null;
+
+  function showError(msg) {
+    $('hint').innerHTML = '<span class="error"></span>';
+    $('hint').firstChild.textContent = msg;
+    $('hint').hidden = false;
+  }
+
+  function stopListening() {
+    if (rec) { try { rec.stop(); } catch {} }
+  }
+
+  function listen(direction) {
+    if (!SR) { showError('Šis pārlūks neprot klausīties. Atver lietotni Chrome pārlūkā.'); return; }
+    if (rec) { stopListening(); return; } // second tap = stop
+
+    speechSynthesis.cancel();
+    greeted = true;
+    const fromLang = direction === 'me' ? LV : LANGS[target].code;
+    const btn = $(direction);
+    const label = btn.querySelector('span');
+    const original = label.textContent;
+
+    rec = new SR();
+    rec.lang = fromLang;
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+
+    let finalText = '';
+    activeBtn = btn;
+    btn.classList.add('listening');
+    label.textContent = direction === 'me' ? 'Klausos…' : LANGS[target].listening;
+    $('said').textContent = '';
+    $('heard').textContent = '';
+    $('tools').hidden = true;
+    $('hint').hidden = true;
+
+    rec.onresult = e => {
+      let interim = '';
+      finalText = '';
+      for (const res of e.results) {
+        if (res.isFinal) finalText += res[0].transcript; else interim += res[0].transcript;
+      }
+      $('heard').textContent = (finalText + ' ' + interim).trim();
+    };
+    rec.onerror = e => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed')
+        showError('Atļauj mikrofonu: Chrome iestatījumos → Vietnes iestatījumi → Mikrofons.');
+      else if (e.error === 'no-speech')
+        showError('Neko nedzirdēju. Spied pogu un mēģini vēlreiz.');
+      else if (e.error === 'network')
+        showError('Nav interneta savienojuma.');
+    };
+    rec.onend = async () => {
+      btn.classList.remove('listening');
+      label.textContent = original;
+      rec = null; activeBtn = null;
+      const heard = (finalText || $('heard').textContent).trim();
+      if (!heard) return;
+
+      let text = heard, from, to, sayLang;
+      if (direction === 'me') {
+        text = cleanLatvian(heard);
+        from = 'lv'; to = target; sayLang = LANGS[target].code;
+      } else {
+        from = target; to = 'lv'; sayLang = LV;
+      }
+      $('heard').textContent = heard;
+      $('said').textContent = '…';
+      try {
+        const out = await translate(text, from, to);
+        $('said').textContent = out;
+        $('tools').hidden = false;
+        last = { text: out, lang: sayLang };
+        speak(out, sayLang);
+      } catch {
+        $('said').textContent = '';
+        showError('Neizdevās iztulkot. Pārbaudi internetu un mēģini vēlreiz.');
+      }
+    };
+
+    try { rec.start(); } catch { rec = null; btn.classList.remove('listening'); label.textContent = original; }
+  }
+
+  $('me').onclick = () => listen('me');
+  $('them').onclick = () => listen('them');
+  $('again').onclick = () => last && speak(last.text, last.lang);
+  $('slow').onclick = () => last && speak(last.text, last.lang, 0.7);
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
