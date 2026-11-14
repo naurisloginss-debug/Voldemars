@@ -53,6 +53,16 @@
   @media (prefers-reduced-motion:reduce){.mic.listening{animation:none}}
 
   .error{color:var(--live);font-size:20px}
+
+  .chooser{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;
+    padding:calc(24px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));gap:16px;z-index:10}
+  .chooser[hidden]{display:none}
+  .chooser h2{font-size:30px;margin:0 0 8px;line-height:1.2}
+  .chooser .pick{flex:1;border:0;border-radius:24px;background:var(--other);color:#fff;
+    font-size:34px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+  .chooser .pick .flag{font-size:64px;line-height:1}
+  .chooser .cancel{border:2px solid var(--line);background:var(--card);border-radius:16px;
+    padding:16px;font-size:22px;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -79,8 +89,15 @@
   </button>
   <button class="mic" id="them">
     <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
-    <span class="lbl">Pietur, lai cits ierunātu<small id="them-label">Speak English</small></span>
+    <span class="lbl">Pietur, lai cits ierunātu<small>English · Español</small></span>
   </button>
+
+<div class="chooser" id="chooser" hidden role="dialog" aria-label="Language / Idioma">
+    <h2>Which language?<br>¿Qué idioma?</h2>
+    <button class="pick" id="pick-en"><span class="flag">🇬🇧</span>I speak English</button>
+    <button class="pick" id="pick-es"><span class="flag">🇪🇸</span>Hablo español</button>
+    <button class="cancel" id="pick-cancel">✕ Atcelt</button>
+  </div>
 
 <script>
 (() => {
@@ -102,7 +119,6 @@
     try { localStorage.setItem('target', t); } catch {}
     $('lang-en').setAttribute('aria-pressed', t === 'en');
     $('lang-es').setAttribute('aria-pressed', t === 'es');
-    $('them-label').textContent = LANGS[t].speakBtn;
   }
   $('lang-en').onclick = () => setTarget('en');
   $('lang-es').onclick = () => setTarget('es');
@@ -265,7 +281,20 @@
   }
 
   $('me').onclick = () => listen('me');
-  $('them').onclick = () => listen('them');
+  // Other person's button: they choose their own language, then speak.
+  const chooser = $('chooser');
+  $('them').onclick = () => {
+    if (rec) { stopListening(); return; }
+    speechSynthesis.cancel();
+    greeted = true;
+    chooser.hidden = false;
+    $('pick-en').focus();
+  };
+  const pick = lang => { chooser.hidden = true; setTarget(lang); listen('them'); };
+  $('pick-en').onclick = () => pick('en');
+  $('pick-es').onclick = () => pick('es');
+  $('pick-cancel').onclick = () => { chooser.hidden = true; $('them').focus(); };
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !chooser.hidden) $('pick-cancel').click(); });
   $('again').onclick = () => last && speak(last.text, last.lang);
   $('slow').onclick = () => last && speak(last.text, last.lang, 0.7);
 
