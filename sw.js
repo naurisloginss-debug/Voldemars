@@ -1,5 +1,5 @@
 // Caches the app itself so it opens instantly. Translation still needs internet.
-const CACHE = 'voldemars-v1';
+const CACHE = 'voldemars-v2';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

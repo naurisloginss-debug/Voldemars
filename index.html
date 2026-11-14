@@ -45,7 +45,9 @@
     display:flex;align-items:center;justify-content:center;gap:14px;color:var(--main-ink)}
   .mic svg{flex:none}
   #me{background:var(--main);font-size:30px;font-weight:700;min-height:120px}
-  #them{background:var(--other);font-size:22px;font-weight:600;min-height:72px}
+  #them{background:var(--other);font-size:24px;font-weight:700;min-height:96px;text-align:left}
+  .lbl{display:flex;flex-direction:column;line-height:1.2}
+  .lbl small{font-size:18px;font-weight:500;opacity:.9;margin-top:4px}
   .mic.listening{background:var(--live)!important;animation:pulse 1.2s ease-in-out infinite}
   @keyframes pulse{50%{transform:scale(.98)}}
   @media (prefers-reduced-motion:reduce){.mic.listening{animation:none}}
@@ -64,7 +66,7 @@
   <div class="result" aria-live="polite">
     <div class="heard" id="heard"></div>
     <div class="said" id="said"></div>
-    <div class="hint" id="hint">Spied zilo pogu un runā latviski.<br><br>Lai otrs cilvēks runā — spied brūno pogu un iedod viņam telefonu.</div>
+    <div class="hint" id="hint">Spied zilo pogu un runā latviski.<br><br>Lai otrs cilvēks runā — spied brūno pogu un pagriez telefonu pret viņu.</div>
     <div class="tools" id="tools" hidden>
       <button id="again">🔊 Vēlreiz</button>
       <button id="slow">🐢 Lēnāk</button>
@@ -73,11 +75,11 @@
 
   <button class="mic" id="me">
     <svg width="44" height="44" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
-    <span id="me-label">Runāt</span>
+    <span class="lbl">Runāt</span>
   </button>
   <button class="mic" id="them">
     <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
-    <span id="them-label">Speak English</span>
+    <span class="lbl">Pietur, lai cits ierunātu<small id="them-label">Speak English</small></span>
   </button>
 
 <script>
@@ -197,8 +199,8 @@
     greeted = true;
     const fromLang = direction === 'me' ? LV : LANGS[target].code;
     const btn = $(direction);
-    const label = btn.querySelector('span');
-    const original = label.textContent;
+    const label = btn.querySelector('.lbl');
+    const original = label.innerHTML;
 
     rec = new SR();
     rec.lang = fromLang;
@@ -233,7 +235,7 @@
     };
     rec.onend = async () => {
       btn.classList.remove('listening');
-      label.textContent = original;
+      label.innerHTML = original;
       rec = null; activeBtn = null;
       const heard = (finalText || $('heard').textContent).trim();
       if (!heard) return;
@@ -259,7 +261,7 @@
       }
     };
 
-    try { rec.start(); } catch { rec = null; btn.classList.remove('listening'); label.textContent = original; }
+    try { rec.start(); } catch { rec = null; btn.classList.remove('listening'); label.innerHTML = original; }
   }
 
   $('me').onclick = () => listen('me');
